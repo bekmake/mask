@@ -9,11 +9,11 @@ import mrcnn.conversion.DetectionLayer as DL
 import mrcnn.conversion.FeaturedPyramidNetworkHeads as FPN
 import mrcnn.conversion.DataGenerator as DG
 import mrcnn.conversion.LossFunctions as LF
-import mrcnn.conversion.utils as utils
-import keras.backend as K
+import keras as K
 import keras.layers as KL
 import keras.models as KM
 
+import mrcnn.conversion.utils
 
 import datetime
 import os
@@ -88,15 +88,12 @@ class MaskRCNN():
                             "For example, use 256, 320, 384, 448, 512, ... etc. ")
 
         # Inputs
-        input_image = tf.placeholder(
-            shape=[None, None, None, float(config.IMAGE_SHAPE[2])], name="input_image", dtype=tf.float32)
-        input_image_meta = tf.placeholder(shape=[None, config.IMAGE_META_SIZE],name="input_image_meta", dtype=tf.float32)
+        input_image = tf.placeholder(shape=[None, None, config.IMAGE_SHAPE[2]], name="input_image", dtype=tf.float32)
+        input_image_meta = tf.placeholder(shape=[config.IMAGE_META_SIZE], name="input_image_meta", dtype=tf.float32)
         if mode == "training":
             # RPN GT
-            input_rpn_match = tf.placeholder(
-                shape=[None, 1], name="input_rpn_match", dtype=tf.int32)
-            input_rpn_bbox = tf.placeholder(
-                shape=[None, 4], name="input_rpn_bbox", dtype=tf.float32)
+            input_rpn_match = tf.placeholder(shape=[None, 1], name="input_rpn_match", dtype=tf.int32)
+            input_rpn_bbox = tf.placeholder(shape=[None, 4], name="input_rpn_bbox", dtype=tf.float32)
 
             # Detection GT (class IDs, bounding boxes, and masks)
             # 1. GT Class IDs (zero padded)
@@ -107,9 +104,8 @@ class MaskRCNN():
             input_gt_boxes = tf.placeholder(
                 shape=[None, 4], name="input_gt_boxes", dtype=tf.float32)
             # Normalize coordinates
-            print("problematic shape: ", tf.shape(input_image)[1:3])
-            gt_boxes = KL.Lambda(lambda x: misc.norm_boxes_graph(x, K.shape(input_image)[1:3]))(input_gt_boxes)
-            #gt_boxes = misc.norm_boxes_graph(input_gt_boxes, tf.shape(input_image)[2:4])
+            gt_boxes = misc.norm_boxes_graph(
+                input_gt_boxes, tf.shape(input_image)[1:3])
             # 3. GT Masks (zero padded)
             # [batch, height, width, MAX_GT_INSTANCES]
             if config.USE_MINI_MASK:
@@ -132,12 +128,9 @@ class MaskRCNN():
         if callable(config.BACKBONE):
             _, C2, C3, C4, C5 = config.BACKBONE(input_image, stage5=True,
                                                 train_bn=config.TRAIN_BN)
-            print("La configurazione è BACKBONE\n")
         else:
             _, C2, C3, C4, C5 = ResNet.resnet_graph(input_image, config.BACKBONE,
                                              stage5=True, train_bn=config.TRAIN_BN)
-            print("La configurazione è resnet_graph\n")
-
         # Top-down Layers
         # TODO: add assert to varify feature map sizes match what's in config
         P5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c5p5')(C5)
@@ -177,20 +170,18 @@ class MaskRCNN():
         # RPN Model
         rpn = RPN.build_rpn_model(config.RPN_ANCHOR_STRIDE,
                               len(config.RPN_ANCHOR_RATIOS), config.TOP_DOWN_PYRAMID_SIZE)
-        
         # Loop through pyramid layers
         layer_outputs = []  # list of lists
-
-        #for p in rpn_feature_maps:
-            #layer_outputs.append(rpn[p])
+        for p in rpn_feature_maps:
+            layer_outputs.append(rpn([p]))
         # Concatenate layer outputs
         # Convert from list of lists of level outputs to list of lists
         # of outputs across levels.
         # e.g. [[a1, b1, c1], [a2, b2, c2]] => [[a1, a2], [b1, b2], [c1, c2]]
         output_names = ["rpn_class_logits", "rpn_class", "rpn_bbox"]
-        outputs = rpn[1]#list(zip(*layer_outputs))
-        #outputs = [KL.Concatenate(axis=1, name=n)(list(o))
-                   #for o, n in zip(outputs, output_names)]
+        outputs = list(zip(*layer_outputs))
+        outputs = [KL.Concatenate(axis=1, name=n)(list(o))
+                   for o, n in zip(outputs, output_names)]
 
         rpn_class_logits, rpn_class, rpn_bbox = outputs
 
@@ -200,11 +191,10 @@ class MaskRCNN():
         proposal_count = config.POST_NMS_ROIS_TRAINING if mode == "training" \
             else config.POST_NMS_ROIS_INFERENCE
         rpn_rois = PL.ProposalLayer(
-            [rpn_class, rpn_bbox, anchors],
             proposal_count=proposal_count,
             nms_threshold=config.RPN_NMS_THRESHOLD,
             name="ROI",
-            config=config)
+            config=config)([rpn_class, rpn_bbox, anchors])
 
         if mode == "training":
             # Class ID mask to mark class IDs supported by the dataset the image
@@ -225,7 +215,7 @@ class MaskRCNN():
             # Note that proposal class IDs, gt_boxes, and gt_masks are zero
             # padded. Equally, returned rois and targets are zero padded.
             rois, target_class_ids, target_bbox, target_mask = \
-                DL.DetectionTargetLayer(config, name="proposal_targets").call([
+                DL.DetectionTargetLayer(config, name="proposal_targets")([
                     target_rois, input_gt_class_ids, gt_boxes, input_gt_masks])
 
             # Network Heads

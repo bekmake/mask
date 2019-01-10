@@ -1,5 +1,6 @@
 
 import tensorflow as tf
+import keras.layers as KL
 
 ############################################################
 #  Resnet Graph
@@ -28,18 +29,18 @@ def identity_block(input_tensor, kernel_size, filters, stage, block,
 
 
         conv1 = tf.layers.conv2d(input_tensor, nb_filter1, (1,1), strides=(1, 1), padding='same', use_bias=True, bias_initializer=tf.zeros_initializer(),name=conv_name_base + '2a')
-        conv1_bn = tf.nn.batch_normalization(conv1, 0, 1, True, True, 0.001, name=bn_name_base + '2a')
+        conv1_bn = tf.nn.batch_normalization(conv1, name=bn_name_base + '2a')
         conv1_postAct = tf.nn.relu(conv1_bn)
 
         conv2 = tf.layers.conv2d(conv1_postAct, nb_filter2, kernel_size, strides=(1, 1), padding='same', use_bias=True, bias_initializer=tf.zeros_initializer(), name=conv_name_base + '2b')
-        conv2_bn = tf.nn.batch_normalization(conv2, 0, 1, True, True, 0.001, name=bn_name_base + '2b')
+        conv2_bn = tf.nn.batch_normalization(conv2, name=bn_name_base + '2b')
         conv2_postAct = tf.nn.relu(conv2_bn)
 
 
         conv3 = tf.layers.conv2d(conv2_postAct, nb_filter3, (1, 1), strides=(1, 1), padding='same', use_bias=True, bias_initializer=tf.zeros_initializer(), name=conv_name_base + '2c')
-        conv3_bn = tf.nn.batch_normalization(conv3, 0, 1, True, True, 0.001, name=bn_name_base + '2c')
+        conv3_bn = tf.nn.batch_normalization(conv3, name=bn_name_base + '2c')
 
-        resnetSum = tf.add(conv3_bn, input_tensor)
+        resnetSum = tf.Add(conv3_bn, input_tensor)
         conv3_postAct = tf.nn.relu(resnetSum, name='res' + str(stage) + block + '_out')
 
         return conv3_postAct
@@ -67,21 +68,21 @@ def conv_block(input_tensor, kernel_size, filters, stage, block,
 
 
         conv1 = tf.layers.conv2d(input_tensor, nb_filter1, (1, 1), strides=strides, padding='same', use_bias=True, bias_initializer=tf.zeros_initializer(), name=conv_name_base + '2a')
-        conv1_bn = tf.nn.batch_normalization(conv1, 0, 1, True, True, 0.001, name=bn_name_base + '2a')
+        conv1_bn = tf.nn.batch_normalization(conv1, name=bn_name_base + '2a')
         conv1_postAct = tf.nn.relu(conv1_bn)
 
         conv2 = tf.layers.conv2d(conv1_postAct, nb_filter2, kernel_size, strides=(1, 1), padding='same', use_bias=True, bias_initializer=tf.zeros_initializer(), name=conv_name_base + '2b')
-        conv2_bn = tf.nn.batch_normalization(conv2, 0, 1, True, True, 0.001, name=bn_name_base + '2b')
+        conv2_bn = tf.nn.batch_normalization(conv2, name=bn_name_base + '2b')
         conv2_postAct = tf.nn.relu(conv2_bn)
 
         conv3 = tf.layers.conv2d(conv2_postAct, nb_filter3, (1, 1), strides=(1, 1), padding='same', use_bias=True, bias_initializer=tf.zeros_initializer(), name=conv_name_base + '2c')
-        conv3_bn = tf.nn.batch_normalization(conv3, 0, 1, True, True, 0.001, name=bn_name_base + '2c')
+        conv3_bn = tf.nn.batch_normalization(conv3, name=bn_name_base + '2c')
 
 
         convSC = tf.layers.conv2d(input_tensor, nb_filter3, (1, 1), strides=strides, padding='same', use_bias=True, bias_initializer=tf.zeros_initializer(), name= conv_name_base + '1')
-        convSC_bn = tf.nn.batch_normalization(convSC, 0, 1, True, True, 0.001, name=bn_name_base + '2c')
+        convSC_bn = tf.nn.batch_normalization(convSC, name=bn_name_base + '2c')
 
-        resnetSum = tf.add(conv3_bn, convSC_bn)
+        resnetSum = tf.Add(conv3_bn, convSC_bn)
         conv3_postAct = tf.nn.relu(resnetSum, name='res' + str(stage) + block + '_out')
         return conv3_postAct
 
@@ -92,16 +93,19 @@ def resnet_graph(input_image, architecture, stage5=False, train_bn=True):
         stage5: Boolean. If False, stage5 of the network is not created
         train_bn: Boolean. Train or freeze Batch Norm layers
     """
+
     with tf.name_scope("ResNet"):
         assert architecture in ["resnet50", "resnet101"]
 
         # Stage 1
-        paddings = tf.constant([[0,0],[3, 3, ], [3, 3], [0,0]])
-        
-        padded_image = tf.pad(input_image, paddings, "CONSTANT")
-
-        conv1 = tf.layers.conv2d(padded_image, 64, (7, 7), strides=(2, 2), padding='same', use_bias=True, bias_initializer=tf.zeros_initializer(), name='conv1')
-        conv1_bn = tf.nn.batch_normalization(conv1, 0, 1, True, True, 0.001, name='bn_conv1')
+        paddings = tf.constant([[3, 3, ], [3, 3], [0, 0]])
+        #padded_image = tf.pad(input_image, paddings, "CONSTANT")
+        #print(input_image)
+        padded_image = KL.ZeroPadding2D((3, 3))(input_image)
+        print(padded_image)
+        conv1 = tf.layers.conv2d(padded_image, 64, (7, 7), strides=(2, 2), use_bias=True, bias_initializer=tf.zeros_initializer(), name='conv1')
+        print(conv1)
+        conv1_bn = tf.nn.batch_normalization(conv1, name='bn_conv1')
         conv1_postAct = tf.nn.relu(conv1_bn)
 
         C1 = x = tf.nn.max_pool(conv1_postAct, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1], padding='SAME')

@@ -1,6 +1,6 @@
 
 import tensorflow as tf
-import mrcnn.conversion.utils
+import mrcnn.conversion.utils as utils
 import numpy as np
 
 ############################################################
@@ -61,38 +61,38 @@ def clip_boxes_graph(boxes, window):
         Proposals in normalized coordinates [batch, rois, (y1, x1, y2, x2)]
     """
 
-def ProposalLayer(self, inputs, pc, nt, c= None):
-    with tf.name_scope("Proposal Layer"):
-        config = c
-        proposal_count = pc
-        nms_threshold = nt
+def ProposalLayer(inputs, proposal_count, nms_threshold, name, config= None):
+    with tf.name_scope("Proposal_Layer"):
+        config = config
+        proposal_count = proposal_count
+        nms_threshold = nms_threshold
 
         # Box Scores. Use the foreground class confidence. [Batch, num_rois, 1]
         scores = inputs[0][:, :, 1]
         # Box deltas [batch, num_rois, 4]
         deltas = inputs[1]
-        deltas = deltas * np.reshape(self.config.RPN_BBOX_STD_DEV, [1, 1, 4])
+        deltas = deltas * np.reshape(config.RPN_BBOX_STD_DEV, [1, 1, 4])
         # Anchors
         anchors = inputs[2]
 
         # Improve performance by trimming to top anchors by score
         # and doing the rest on the smaller subset.
-        pre_nms_limit = tf.minimum(self.config.PRE_NMS_LIMIT, tf.shape(anchors)[1])
+        pre_nms_limit = tf.minimum(config.PRE_NMS_LIMIT, tf.shape(anchors)[1])
         ix = tf.nn.top_k(scores, pre_nms_limit, sorted=True,
                          name="top_anchors").indices
         scores = utils.batch_slice([scores, ix], lambda x, y: tf.gather(x, y),
-                                   self.config.IMAGES_PER_GPU)
+                                   config.IMAGES_PER_GPU)
         deltas = utils.batch_slice([deltas, ix], lambda x, y: tf.gather(x, y),
-                                   self.config.IMAGES_PER_GPU)
+                                   config.IMAGES_PER_GPU)
         pre_nms_anchors = utils.batch_slice([anchors, ix], lambda a, x: tf.gather(a, x),
-                                            self.config.IMAGES_PER_GPU,
+                                            config.IMAGES_PER_GPU,
                                             names=["pre_nms_anchors"])
 
         # Apply deltas to anchors to get refined anchors.
         # [batch, N, (y1, x1, y2, x2)]
         boxes = utils.batch_slice([pre_nms_anchors, deltas],
                                   lambda x, y: apply_box_deltas_graph(x, y),
-                                  self.config.IMAGES_PER_GPU,
+                                  config.IMAGES_PER_GPU,
                                   names=["refined_anchors"])
 
         # Clip to image boundaries. Since we're in normalized coordinates,
@@ -100,7 +100,7 @@ def ProposalLayer(self, inputs, pc, nt, c= None):
         window = np.array([0, 0, 1, 1], dtype=np.float32)
         boxes = utils.batch_slice(boxes,
                                   lambda x: clip_boxes_graph(x, window),
-                                  self.config.IMAGES_PER_GPU,
+                                  config.IMAGES_PER_GPU,
                                   names=["refined_anchors_clipped"])
 
         # Filter out small boxes
@@ -110,18 +110,18 @@ def ProposalLayer(self, inputs, pc, nt, c= None):
         # Non-max suppression
         def nms(boxes, scores):
             indices = tf.image.non_max_suppression(
-                boxes, scores, self.proposal_count,
-                self.nms_threshold, name="rpn_non_max_suppression")
+                boxes, scores, proposal_count,
+                nms_threshold, name="rpn_non_max_suppression")
             proposals = tf.gather(boxes, indices)
             # Pad if needed
-            padding = tf.maximum(self.proposal_count - tf.shape(proposals)[0], 0)
+            padding = tf.maximum(proposal_count - tf.shape(proposals)[0], 0)
             proposals = tf.pad(proposals, [(0, padding), (0, 0)])
             return proposals
 
         proposals = utils.batch_slice([boxes, scores], nms,
-                                      self.config.IMAGES_PER_GPU)
+                                      config.IMAGES_PER_GPU)
         return proposals
 
-def compute_output_shape(self, input_shape, proposal_count):
+def compute_output_shape(input_shape, proposal_count):
     return (None, proposal_count, 4)
 

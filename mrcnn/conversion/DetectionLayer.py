@@ -1,8 +1,8 @@
 import tensorflow as tf
-import mrcnn.conversion.MiscFunctions
-import mrcnn.conversion.utils
-import mrcnn.conversion.ProposalLayer
-import mrcnn.conversion.DataFormatting
+import mrcnn.conversion.MiscFunctions as MiscFunctions
+import mrcnn.conversion.utils as utils
+import mrcnn.conversion.ProposalLayer as ProposalLayer
+import mrcnn.conversion.DataFormatting as DataFormatting
 ############################################################
 #  Detection Target Layer
 ############################################################
@@ -64,7 +64,10 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
 
     # Remove zero padding
     proposals, _ = MiscFunctions.trim_zeros_graph(proposals, name="trim_proposals")
+    print("gt_bexes1: ", gt_boxes)
     gt_boxes, non_zeros = MiscFunctions.trim_zeros_graph(gt_boxes, name="trim_gt_boxes")
+    print("gt_bexes2: ", gt_boxes)
+    print("non_zero: ", non_zeros)    
     gt_class_ids = tf.boolean_mask(gt_class_ids, non_zeros,
                                    name="trim_gt_class_ids")
     gt_masks = tf.gather(gt_masks, tf.where(non_zeros)[:, 0], axis=2,
@@ -191,10 +194,10 @@ class DetectionTargetLayer:
                  network output size.
     Note: Returned arrays might be zero padded if not enough target ROIs.
     """
-
-    def __init__(self, config):
-        super(DetectionTargetLayer, self).__init__(**kwargs)
+    
+    def __init__(self, config, name):
         self.config = config
+        self.name = name
 
     def call(self, inputs):
         proposals = inputs[0]

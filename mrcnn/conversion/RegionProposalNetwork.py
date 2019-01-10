@@ -15,7 +15,7 @@ def rpn_graph(feature_map, anchors_per_location, anchor_stride):
         rpn_bbox: [batch, H * W * anchors_per_location, (dy, dx, log(dh), log(dw))] Deltas to be
                   applied to anchors.
     """
-    with tf.name_scope('RPN Graph'):
+    with tf.name_scope('RPN_Graph'):
         # TODO: check if stride of 2 causes alignment issues if the feature map
         # is not even.
         # Shared convolutional base of the RPN
@@ -50,7 +50,6 @@ def build_rpn_model(anchor_stride, anchors_per_location, depth):
     rpn_bbox: [batch, H * W * anchors_per_location, (dy, dx, log(dh), log(dw))] Deltas to be
                 applied to anchors.
     """
-    input_feature_map = tf.placeholder(shape=[None, None, depth],
-                                 name="input_rpn_feature_map")
+    input_feature_map = tf.placeholder(shape=[None, None, None, depth],name="input_rpn_feature_map", dtype=tf.float32)
     outputs = rpn_graph(input_feature_map, anchors_per_location, anchor_stride)
     return input_feature_map, outputs
