@@ -1,5 +1,5 @@
 import tensorflow as tf
-import mrcnn.conversion.DataFormatting
+import mrcnn.conversion.DataFormatting as DataFormatting
 ############################################################
 #  ROIAlign Layer
 ############################################################
@@ -26,9 +26,9 @@ constructor.
 """
 
 
-def PyramidROIAlign(inputs, ps):
+def PyramidROIAlign(inputs, ps,name):
 
-    with tf.name_scope("PyramidROIAlign"):
+    with tf.name_scope("PyramidROIAlign"+name):
         pool_shape = ps
         # Crop boxes [batch, num_boxes, (y1, x1, y2, x2)] in normalized coords
         boxes = inputs[0]

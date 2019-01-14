@@ -64,10 +64,7 @@ def detection_targets_graph(proposals, gt_class_ids, gt_boxes, gt_masks, config)
 
     # Remove zero padding
     proposals, _ = MiscFunctions.trim_zeros_graph(proposals, name="trim_proposals")
-    print("gt_bexes1: ", gt_boxes)
     gt_boxes, non_zeros = MiscFunctions.trim_zeros_graph(gt_boxes, name="trim_gt_boxes")
-    print("gt_bexes2: ", gt_boxes)
-    print("non_zero: ", non_zeros)    
     gt_class_ids = tf.boolean_mask(gt_class_ids, non_zeros,
                                    name="trim_gt_class_ids")
     gt_masks = tf.gather(gt_masks, tf.where(non_zeros)[:, 0], axis=2,
@@ -200,20 +197,21 @@ class DetectionTargetLayer:
         self.name = name
 
     def call(self, inputs):
-        proposals = inputs[0]
-        gt_class_ids = inputs[1]
-        gt_boxes = inputs[2]
-        gt_masks = inputs[3]
+        with tf.name_scope(self.name):
+            proposals = inputs[0]
+            gt_class_ids = inputs[1]
+            gt_boxes = inputs[2]
+            gt_masks = inputs[3]
 
-        # Slice the batch and run a graph for each slice
-        # TODO: Rename target_bbox to target_deltas for clarity
-        names = ["rois", "target_class_ids", "target_bbox", "target_mask"]
-        outputs = utils.batch_slice(
-            [proposals, gt_class_ids, gt_boxes, gt_masks],
-            lambda w, x, y, z: detection_targets_graph(
-                w, x, y, z, self.config),
-            self.config.IMAGES_PER_GPU, names=names)
-        return outputs
+            # Slice the batch and run a graph for each slice
+            # TODO: Rename target_bbox to target_deltas for clarity
+            names = ["rois", "target_class_ids", "target_bbox", "target_mask"]
+            outputs = utils.batch_slice(
+                [proposals, gt_class_ids, gt_boxes, gt_masks],
+                lambda w, x, y, z: detection_targets_graph(
+                    w, x, y, z, self.config),
+                self.config.IMAGES_PER_GPU, names=names)
+            return outputs
 
     def compute_output_shape(self, input_shape):
         return [

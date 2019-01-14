@@ -101,29 +101,31 @@ class MaskRCNN():
             # Detection GT (class IDs, bounding boxes, and masks)
             # 1. GT Class IDs (zero padded)
             input_gt_class_ids = tf.placeholder(
-                shape=[None], name="input_gt_class_ids", dtype=tf.int32)
+                shape=[None,None], name="input_gt_class_ids", dtype=tf.int32)
             # 2. GT Boxes in pixels (zero padded)
             # [batch, MAX_GT_INSTANCES, (y1, x1, y2, x2)] in image coordinates
+            
+            # CHANGED INPUT_GT_BOXES SHAPE FROM [None, 4] TO shape=[None, None, 4]
             input_gt_boxes = tf.placeholder(
-                shape=[None, 4], name="input_gt_boxes", dtype=tf.float32)
-            # Normalize coordinates
-            print("problematic shape: ", tf.shape(input_image)[1:3])
-            gt_boxes = KL.Lambda(lambda x: misc.norm_boxes_graph(x, K.shape(input_image)[1:3]))(input_gt_boxes)
-            #gt_boxes = misc.norm_boxes_graph(input_gt_boxes, tf.shape(input_image)[2:4])
+                shape=[None, None, 4], name="input_gt_boxes", dtype=tf.float32)         
+            # Normalize coordinates            
+            gt_boxes = misc.norm_boxes_graph(input_gt_boxes, tf.shape(input_image)[1:3])
+            
             # 3. GT Masks (zero padded)
             # [batch, height, width, MAX_GT_INSTANCES]
+            #CHANGED input_gt_masks SHAPE TO ONE MORE NONE
             if config.USE_MINI_MASK:
                 input_gt_masks = tf.placeholder(
-                    shape=[config.MINI_MASK_SHAPE[0],
+                    shape=[None, config.MINI_MASK_SHAPE[0],
                            config.MINI_MASK_SHAPE[1], None],
                     name="input_gt_masks", dtype=bool)
             else:
                 input_gt_masks = tf.placeholder(
-                    shape=[config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1], None],
+                    shape=[None, config.IMAGE_SHAPE[0], config.IMAGE_SHAPE[1], None],
                     name="input_gt_masks", dtype=bool)
         elif mode == "inference":
             # Anchors in normalized coordinates
-            input_anchors = tf.placeholder(shape=[None, 4], name="input_anchors")
+            input_anchors = tf.placeholder(shape=[None, None, 4], name="input_anchors")
 
         # Build the shared convolutional layers.
         # Bottom-up Layers
